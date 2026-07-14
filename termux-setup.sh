@@ -16,7 +16,9 @@ echo ""
 # ── 1. Install system packages ────────────────────────────────────────────────
 echo "[1/6] Installing Termux packages..."
 pkg update -y -q
-pkg install -y nodejs git postgresql
+# nodejs-lts avoids the OSSL_PROVIDER_add_conf_parameter link error
+# that the latest nodejs package has on many Android versions.
+pkg install -y nodejs-lts git postgresql
 
 # ── 2. Init & start PostgreSQL ────────────────────────────────────────────────
 echo "[2/6] Setting up PostgreSQL..."
