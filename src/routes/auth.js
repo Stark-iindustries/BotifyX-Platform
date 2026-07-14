@@ -5,35 +5,39 @@ const passport = require('passport');
 const bcrypt   = require('bcryptjs');
 const pool     = require('../db');
 
-// ── Google OAuth ──────────────────────────────────────────────────────────────
-router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+const googleEnabled = () =>
+  !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
-router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/?auth=failed' }),
-  (req, res) => res.redirect('/dashboard')
-);
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+router.get('/google', (req, res, next) => {
+  if (!googleEnabled()) {
+    return res.redirect('/?auth=google_not_configured');
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
+
+router.get('/google/callback', (req, res, next) => {
+  if (!googleEnabled()) return res.redirect('/?auth=google_not_configured');
+  passport.authenticate('google', { failureRedirect: '/?auth=failed' })(req, res, () => {
+    res.redirect('/dashboard');
+  });
+});
 
 // ── Email / Password: Register ────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password)
     return res.status(400).json({ error: 'Name, email, and password are required.' });
-  }
-  if (password.length < 8) {
+  if (password.length < 8)
     return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-  }
 
   try {
-    // Check if email already exists
     const { rows: existing } = await pool.query(
       'SELECT id FROM users WHERE email = $1', [email.toLowerCase()]
     );
-    if (existing.length) {
+    if (existing.length)
       return res.status(409).json({ error: 'An account with this email already exists.' });
-    }
 
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
@@ -55,31 +59,27 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (!email || !password)
     return res.status(400).json({ error: 'Email and password are required.' });
-  }
 
   try {
     const { rows } = await pool.query(
       'SELECT * FROM users WHERE email = $1', [email.toLowerCase()]
     );
 
-    if (!rows.length) {
+    if (!rows.length)
       return res.status(401).json({ error: 'No account found with this email.' });
-    }
 
     const user = rows[0];
 
-    if (!user.password_hash) {
+    if (!user.password_hash)
       return res.status(401).json({
         error: 'This account uses Google sign-in. Please continue with Google.',
       });
-    }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
+    if (!valid)
       return res.status(401).json({ error: 'Incorrect password.' });
-    }
 
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: 'Login failed.' });
