@@ -9,6 +9,7 @@ const passport  = require('passport');
 const path      = require('path');
 const helmet    = require('helmet');
 const pool      = require('./db');
+const migrate   = require('./db/migrate');
 
 require('./config/passport');
 
@@ -61,4 +62,15 @@ const DIST = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(DIST));
 app.get('*', (_, res) => res.sendFile(path.join(DIST, 'index.html')));
 
-app.listen(PORT, () => console.log(`[BotifyX Platform] Running on port ${PORT}`));
+// ── Boot: migrate DB then listen ──────────────────────────────────────────────
+async function boot() {
+  try {
+    await migrate();
+  } catch (err) {
+    console.error('[DB] Auto-migration failed:', err.message);
+    // Non-fatal — continue starting up; DB may already be set up
+  }
+  app.listen(PORT, () => console.log(`[BotifyX Platform] Running on port ${PORT}`));
+}
+
+boot();
